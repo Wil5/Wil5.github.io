@@ -308,17 +308,17 @@
 
         const clusterOffset = deskWidth / 2 + 0.1;
         const deskSetups = [
-            { pos: new THREE.Vector3( clusterOffset, 0, 0), rot: -Math.PI / 2, name: "MARK S." },
-            { pos: new THREE.Vector3(-clusterOffset, 0, 0), rot:  Math.PI / 2, name: "DYLAN G." },
-            { pos: new THREE.Vector3( 0, 0, clusterOffset), rot:  Math.PI    , name: "IRVING B." },
-            { pos: new THREE.Vector3( 0, 0,-clusterOffset), rot:  0          , name: "WILFRED" }
+            { pos: new THREE.Vector3( clusterOffset, 0, 0), rot: -Math.PI / 2, name: "WILFRED" },
+            { pos: new THREE.Vector3(-clusterOffset, 0, 0), rot:  Math.PI / 2, name: "来" },
+            { pos: new THREE.Vector3( 0, 0, clusterOffset), rot:  Math.PI    , name: "财" },
+            { pos: new THREE.Vector3( 0, 0,-clusterOffset), rot:  0          , name: "Says" }
         ];
 
         deskSetups.forEach(setup => {
             createDeskWithComputer(setup.pos, setup.rot, setup.name);
         });
 
-        const adjustedDividerLength = clusterOffset * 3;
+        const adjustedDividerLength = clusterOffset * 3.7;
         const dividerCenterY = deskHeight + (dividerHeight / 2);
 
         createDivider(new THREE.Vector3(0, dividerCenterY, 0), new THREE.Vector3(dividerThickness, dividerHeight, adjustedDividerLength));
