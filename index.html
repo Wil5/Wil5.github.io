@@ -3,417 +3,362 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Severance-Themed Room</title>
+    <title>Severance Office - Orbit Controls</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            font-family: 'Courier New', monospace;
+            background-color: #f0f0f0; /* Match scene background */
         }
-        #info {
-            position: absolute;
-            top: 10px;
-            width: 100%;
-            text-align: center;
-            color: white;
-            pointer-events: none;
-        }
+        canvas { display: block; } /* Prevent scrollbars */
         .loading {
             position: absolute;
             top: 50%;
-            width: 100%;
-            text-align: center;
+            left: 50%;
+            transform: translate(-50%, -50%);
             color: #4a7856;
+            font-family: 'Courier New', monospace;
             font-size: 18px;
+            z-index: 10;
         }
     </style>
 </head>
 <body>
-    <div id="info">Severance Room - Use WASD to move, mouse to look around</div>
     <div class="loading" id="loading">Loading Lumon Industries Environment...</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
     <script>
         // Scene setup
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xf0f0f0);
-        
+
         // Camera setup
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.6, 4);
-        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const initialCameraPosition = new THREE.Vector3(6, 6, 6);
+        camera.position.copy(initialCameraPosition);
+        // LookAt will be managed by OrbitControls target
+
         // Renderer setup
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
-        
+
+        // --- Orbit Controls Setup ---
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1, 0); // Set the point to orbit around (center, slightly above floor)
+        controls.enableDamping = true; // Optional: adds inertia to movement
+        controls.dampingFactor = 0.1;
+        controls.screenSpacePanning = false; // Optional: Prevent panning sideways
+        controls.minDistance = 2; // Optional: Minimum zoom distance
+        controls.maxDistance = 20; // Optional: Maximum zoom distance
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; // Optional: Prevent looking up from below ground level
+        controls.update(); // Initial update
+
         // Lighting
-        // Main fluorescent lights - that clinical Lumon look
-        const ambientLight = new THREE.AmbientLight(0xcccccc, 0.4);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-        directionalLight.position.set(0, 4, 2);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        directionalLight.position.set(10, 15, 8);
         directionalLight.castShadow = true;
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 50;
+        directionalLight.shadow.camera.left = -12;
+        directionalLight.shadow.camera.right = 12;
+        directionalLight.shadow.camera.top = 12;
+        directionalLight.shadow.camera.bottom = -12;
         scene.add(directionalLight);
-        
-        // Add fluorescent ceiling lights
-        function createCeilingLight(x, z) {
-            const light = new THREE.RectAreaLight(0xffffff, 5, 2, 0.5);
-            light.position.set(x, 2.95, z);
-            light.rotation.x = Math.PI / 2;
-            scene.add(light);
-            
-            // Light fixture
-            const fixture = new THREE.Mesh(
-                new THREE.BoxGeometry(2, 0.1, 0.5),
-                new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.5 })
-            );
-            fixture.position.set(x, 2.95, z);
-            scene.add(fixture);
+
+        // --- Room Setup ---
+        const roomSize = 10;
+        const roomHeight = 4;
+
+        function createRoomCube() {
+            // Wall Material (Transparent)
+            const wallMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0,
+                roughness: 0.9,
+                side: THREE.DoubleSide
+            });
+            const wallGeometry = new THREE.BoxGeometry(roomSize, roomHeight, roomSize);
+            const roomWalls = new THREE.Mesh(wallGeometry, wallMaterial);
+            roomWalls.position.y = roomHeight / 2;
+            roomWalls.castShadow = false;
+            roomWalls.receiveShadow = true;
+            scene.add(roomWalls);
+
+            // Ceiling Material (Transparent)
+            const ceilingMaterial = new THREE.MeshStandardMaterial({
+                color: 0xf5f5f5,
+                transparent: true,
+                opacity: 0,
+                side: THREE.DoubleSide,
+                roughness: 0.8
+            });
+            const ceilingGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
+            const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = roomHeight;
+            ceiling.receiveShadow = false;
+            ceiling.castShadow = false;
+            scene.add(ceiling);
         }
-        
-        createCeilingLight(0, 0);
-        createCeilingLight(0, -4);
-        
-        // Room
-        function createRoom() {
-            // Floor
-            const floorTexture = new THREE.TextureLoader().load(
-                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-            );
-            floorTexture.wrapS = THREE.RepeatWrapping;
-            floorTexture.wrapT = THREE.RepeatWrapping;
-            floorTexture.repeat.set(20, 20);
-            
-            const floor = new THREE.Mesh(
-                new THREE.PlaneGeometry(10, 10),
-                new THREE.MeshStandardMaterial({ 
-                    color: 0x4a7856,  // Green-blue Lumon color
-                    map: floorTexture,
-                    roughness: 0.8
-                })
-            );
+
+
+        function createFloor() {
+            const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
+            const floorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4a7856,
+                roughness: 0.9
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
             floor.rotation.x = -Math.PI / 2;
-            floor.position.y = 0;
+            floor.position.y = 0.01;
             floor.receiveShadow = true;
             scene.add(floor);
-            
-            // Ceiling
-            const ceiling = new THREE.Mesh(
-                new THREE.PlaneGeometry(10, 10),
-                new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.7 })
-            );
-            ceiling.rotation.x = Math.PI / 2;
-            ceiling.position.y = 3;
-            scene.add(ceiling);
-            
-            // Walls
-            const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
-            
-            // Back wall
-            const backWall = new THREE.Mesh(
-                new THREE.PlaneGeometry(10, 3),
-                wallMaterial
-            );
-            backWall.position.z = -5;
-            backWall.position.y = 1.5;
-            scene.add(backWall);
-            
-            // Front wall with doorway
-            const frontWallLeft = new THREE.Mesh(
-                new THREE.PlaneGeometry(4, 3),
-                wallMaterial
-            );
-            frontWallLeft.position.z = 5;
-            frontWallLeft.position.x = -3;
-            frontWallLeft.position.y = 1.5;
-            frontWallLeft.rotation.y = Math.PI;
-            scene.add(frontWallLeft);
-            
-            const frontWallRight = new THREE.Mesh(
-                new THREE.PlaneGeometry(4, 3),
-                wallMaterial
-            );
-            frontWallRight.position.z = 5;
-            frontWallRight.position.x = 3;
-            frontWallRight.position.y = 1.5;
-            frontWallRight.rotation.y = Math.PI;
-            scene.add(frontWallRight);
-            
-            // Top of doorway
-            const doorTop = new THREE.Mesh(
-                new THREE.PlaneGeometry(2, 1),
-                wallMaterial
-            );
-            doorTop.position.z = 5;
-            doorTop.position.y = 2.5;
-            doorTop.rotation.y = Math.PI;
-            scene.add(doorTop);
-            
-            // Left wall
-            const leftWall = new THREE.Mesh(
-                new THREE.PlaneGeometry(10, 3),
-                wallMaterial
-            );
-            leftWall.position.x = -5;
-            leftWall.position.y = 1.5;
-            leftWall.rotation.y = Math.PI / 2;
-            scene.add(leftWall);
-            
-            // Right wall
-            const rightWall = new THREE.Mesh(
-                new THREE.PlaneGeometry(10, 3),
-                wallMaterial
-            );
-            rightWall.position.x = 5;
-            rightWall.position.y = 1.5;
-            rightWall.rotation.y = -Math.PI / 2;
-            scene.add(rightWall);
         }
-        
-        // Create desk setup
-        function createDeskWithComputer() {
-            // Desk
-            const desk = new THREE.Mesh(
-                new THREE.BoxGeometry(3, 0.1, 1.5),
-                new THREE.MeshStandardMaterial({ color: 0x886633 })
-            );
-            desk.position.set(0, 0.75, 0);
+
+        // --- Desk and Computer Creation ---
+        const deskWidth = 1.2;
+        const deskDepth = 0.7;
+        const deskHeight = 0.75;
+        const legHeight = 0.75;
+        const clickableObjects = []; // Still needed for double-click
+
+        function createDeskWithComputer(position, rotationY, name) {
+            const group = new THREE.Group();
+            group.position.copy(position);
+            // Apply initial rotation + 90 degrees left
+            group.rotation.y = rotationY + Math.PI / 2;
+
+            // Calculate forward direction AFTER setting rotation
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(group.quaternion);
+
+            const moveDistance = 0;
+            group.position.addScaledVector(forward, moveDistance);
+            scene.add(group);
+
+            // Desk Top
+            const deskMaterial = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.6 });
+            const desk = new THREE.Mesh(new THREE.BoxGeometry(deskWidth, 0.05, deskDepth), deskMaterial);
+            desk.position.y = deskHeight;
             desk.castShadow = true;
             desk.receiveShadow = true;
-            scene.add(desk);
-            
+            group.add(desk);
+
             // Desk legs
-            const legGeometry = new THREE.BoxGeometry(0.1, 0.75, 0.1);
-            const legMaterial = new THREE.MeshStandardMaterial({ color: 0x886633 });
-            
-            const positions = [
-                [-1.4, 0.375, -0.7],
-                [1.4, 0.375, -0.7],
-                [-1.4, 0.375, 0.7],
-                [1.4, 0.375, 0.7]
+            const legGeometry = new THREE.BoxGeometry(0.05, legHeight, 0.05);
+            const legMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
+            const legPositions = [
+                [-(deskWidth/2 - 0.05), -legHeight / 2, -(deskDepth/2 - 0.05)],
+                [ (deskWidth/2 - 0.05), -legHeight / 2, -(deskDepth/2 - 0.05)],
+                [-(deskWidth/2 - 0.05), -legHeight / 2,  (deskDepth/2 - 0.05)],
+                [ (deskWidth/2 - 0.05), -legHeight / 2,  (deskDepth/2 - 0.05)]
             ];
-            
-            positions.forEach(pos => {
+            legPositions.forEach(pos => {
                 const leg = new THREE.Mesh(legGeometry, legMaterial);
-                leg.position.set(...pos);
+                leg.position.set(pos[0], pos[1], pos[2]);
                 leg.castShadow = true;
                 desk.add(leg);
             });
-            
-            // Computer monitor base
-            const monitorBase = new THREE.Mesh(
-                new THREE.BoxGeometry(0.3, 0.05, 0.3),
-                new THREE.MeshStandardMaterial({ color: 0x111111 })
-            );
-            monitorBase.position.set(0, 0.82, 0);
-            scene.add(monitorBase);
-            
-            // Computer monitor stand
-            const monitorStand = new THREE.Mesh(
-                new THREE.BoxGeometry(0.05, 0.3, 0.05),
-                new THREE.MeshStandardMaterial({ color: 0x111111 })
-            );
-            monitorStand.position.set(0, 1, 0);
-            scene.add(monitorStand);
-            
-            // Computer monitor
-            const monitor = new THREE.Mesh(
-                new THREE.BoxGeometry(1.2, 0.8, 0.1),
-                new THREE.MeshStandardMaterial({ color: 0x111111 })
-            );
-            monitor.position.set(0, 1.4, 0);
-            scene.add(monitor);
-            
-            // Computer screen (where the name will be displayed)
-            const screenGeometry = new THREE.PlaneGeometry(1.1, 0.7);
+
+            // --- Computer Components ---
+            const monitorMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.3 });
+            const monitorYOffset = deskHeight + 0.02;
+
+            const monitorBase = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.04, 32), monitorMaterial);
+            monitorBase.position.set(0, monitorYOffset, 0.1);
+            monitorBase.castShadow = true;
+            group.add(monitorBase);
+
+            const standHeight = 0.15;
+            const monitorStand = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, standHeight, 32), monitorMaterial);
+            monitorStand.position.set(0, monitorYOffset + standHeight / 2, 0.1);
+            monitorStand.castShadow = true;
+            group.add(monitorStand);
+
+            const monitorWidth = 0.5;
+            const monitorHeight = 0.35;
+            const monitorDepth = 0.05;
+            const monitor = new THREE.Mesh(new THREE.BoxGeometry(monitorWidth, monitorHeight, monitorDepth), monitorMaterial);
+            monitor.position.set(0, monitorYOffset + standHeight + monitorHeight / 2, 0.1);
+            monitor.castShadow = true;
+            monitor.name = "monitor_" + name;
+            group.add(monitor);
+
+            const screenWidth = monitorWidth * 0.9;
+            const screenHeight = monitorHeight * 0.85;
+            const screenGeometry = new THREE.PlaneGeometry(screenWidth, screenHeight);
             const screenCanvas = document.createElement('canvas');
             const screenCtx = screenCanvas.getContext('2d');
-            screenCanvas.width = 512;
-            screenCanvas.height = 256;
-            
-            // Fill with green-blue background color
-            screenCtx.fillStyle = '#4a7856';
-            screenCtx.fillRect(0, 0, screenCanvas.width, screenCanvas.height);
-            
-            // Add text - the name "Wilfred"
-            screenCtx.fillStyle = '#ffffff';
-            screenCtx.font = 'bold 52px monospace';
-            screenCtx.textAlign = 'center';
-            screenCtx.textBaseline = 'middle';
-            screenCtx.fillText("WILFRED", screenCanvas.width / 2, screenCanvas.height / 2);
-            
-            // Draw the Lumon logo
-            screenCtx.beginPath();
-            screenCtx.arc(screenCanvas.width / 2, 50, 30, 0, Math.PI * 2);
-            screenCtx.strokeStyle = '#ffffff';
-            screenCtx.lineWidth = 3;
-            screenCtx.stroke();
-            
-            // Add the green flickering line like in Severance
-            screenCtx.strokeStyle = '#a7ffb9';
-            screenCtx.lineWidth = 2;
-            screenCtx.beginPath();
-            screenCtx.moveTo(100, 200);
-            screenCtx.lineTo(400, 200);
-            screenCtx.stroke();
-            
+            screenCanvas.width = 256; screenCanvas.height = 160;
+            screenCtx.fillStyle = '#4a7856'; screenCtx.fillRect(0, 0, screenCanvas.width, screenCanvas.height);
+            screenCtx.fillStyle = '#e0e0e0'; screenCtx.font = 'bold 20px monospace';
+            screenCtx.textAlign = 'center'; screenCtx.textBaseline = 'middle';
+            screenCtx.fillText(name.toUpperCase(), screenCanvas.width / 2, screenCanvas.height / 2);
             const screenTexture = new THREE.CanvasTexture(screenCanvas);
-            const screenMaterial = new THREE.MeshBasicMaterial({ map: screenTexture, emissive: 0xffffff, emissiveIntensity: 0.5 });
-            
+            const screenMaterial = new THREE.MeshBasicMaterial({ map: screenTexture });
             const screen = new THREE.Mesh(screenGeometry, screenMaterial);
-            screen.position.set(0, 1.4, 0.06);
-            scene.add(screen);
-            
-            // Keyboard
-            const keyboard = new THREE.Mesh(
-                new THREE.BoxGeometry(0.6, 0.05, 0.2),
-                new THREE.MeshStandardMaterial({ color: 0x333333 })
-            );
-            keyboard.position.set(0, 0.82, 0.4);
-            scene.add(keyboard);
-            
-            // Chair
-            const chairSeat = new THREE.Mesh(
-                new THREE.BoxGeometry(0.6, 0.1, 0.6),
-                new THREE.MeshStandardMaterial({ color: 0x222222 })
-            );
-            chairSeat.position.set(0, 0.5, 1.2);
-            scene.add(chairSeat);
-            
-            const chairBack = new THREE.Mesh(
-                new THREE.BoxGeometry(0.6, 0.8, 0.1),
-                new THREE.MeshStandardMaterial({ color: 0x222222 })
-            );
-            chairBack.position.set(0, 0.9, 1.5);
-            scene.add(chairBack);
-            
-            return screen;
+            screen.position.z = monitorDepth / 2 + 0.001;
+            monitor.add(screen);
+
+            clickableObjects.push(monitor); // Add monitor to list for double-click detection
+
+            const keyboardMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+            const keyboard = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.02, 0.15), keyboardMaterial);
+            keyboard.position.set(0, deskHeight + 0.01, 0.3);
+            keyboard.castShadow = true;
+            group.add(keyboard);
+
+            const chairMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+            const chairZOffset = deskDepth * 0.95;
+            const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.4), chairMaterial);
+            chairSeat.position.set(0, deskHeight * 0.6, chairZOffset);
+            chairSeat.castShadow = true;
+            group.add(chairSeat);
+            const chairBack = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.05), chairMaterial);
+            chairBack.position.set(0, deskHeight * 0.6 + 0.225, chairZOffset + 0.175);
+            chairBack.castShadow = true;
+            group.add(chairBack);
+            const chairPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, deskHeight * 0.6), chairMaterial);
+            chairPole.position.set(0, (deskHeight * 0.6)/2, chairZOffset);
+            chairPole.castShadow = true;
+            group.add(chairPole);
+
+            return group;
         }
-        
-        // Create room and computer
-        createRoom();
-        const computerScreen = createDeskWithComputer();
-        
-        // Basic camera controls
-        let moveForward = false;
-        let moveBackward = false;
-        let moveLeft = false;
-        let moveRight = false;
-        
-        document.addEventListener('keydown', function(event) {
-            switch (event.code) {
-                case 'KeyW': moveForward = true; break;
-                case 'KeyS': moveBackward = true; break;
-                case 'KeyA': moveLeft = true; break;
-                case 'KeyD': moveRight = true; break;
-            }
-        });
-        
-        document.addEventListener('keyup', function(event) {
-            switch (event.code) {
-                case 'KeyW': moveForward = false; break;
-                case 'KeyS': moveBackward = false; break;
-                case 'KeyA': moveLeft = false; break;
-                case 'KeyD': moveRight = false; break;
-            }
-        });
-        
-        // Mouse look controls
-        let mouseX = 0;
-        let mouseY = 0;
-        let targetRotationY = 0;
-        let targetRotationX = 0;
-        
-        document.addEventListener('mousemove', onDocumentMouseMove, false);
-        
-        function onDocumentMouseMove(event) {
-            mouseX = (event.clientX - window.innerWidth / 2) * 0.002;
-            mouseY = (event.clientY - window.innerHeight / 2) * 0.002;
-            
-            targetRotationY = mouseX;
-            targetRotationX = Math.max(-Math.PI/4, Math.min(Math.PI/4, mouseY));
+
+        // --- Create Dividers ---
+        const dividerHeight = deskHeight * 0.7;
+        const dividerThickness = 0.05;
+
+        function createDivider(position, size) {
+            const dividerMaterial = new THREE.MeshStandardMaterial({
+                color: 0xadc4b3,
+                roughness: 0.8,
+                side: THREE.DoubleSide
+            });
+            const dividerGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+            const divider = new THREE.Mesh(dividerGeometry, dividerMaterial);
+            divider.position.copy(position);
+            divider.castShadow = true;
+            divider.receiveShadow = true;
+            scene.add(divider);
         }
-        
+
+        // --- Interaction Setup ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        // Remove targetPosition, targetLookAt, isZooming, isZoomedOut as OrbitControls handles camera movement
+        // let targetPosition = new THREE.Vector3();
+        // let targetLookAt = new THREE.Vector3();
+        // let isZooming = false;
+        // let isZoomedOut = true;
+
+        // --- CHANGE: Use 'dblclick' event listener ---
+        function onDoubleClick( event ) {
+            mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+            mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+            raycaster.setFromCamera( mouse, camera );
+            const intersects = raycaster.intersectObjects( clickableObjects, false );
+
+            if ( intersects.length > 0 ) {
+                 // --- CHANGE: Animate camera using OrbitControls target ---
+                const clickedMonitor = intersects[0].object;
+                const screen = clickedMonitor.children[0];
+                const screenWorldPosition = new THREE.Vector3();
+                screen.getWorldPosition(screenWorldPosition);
+
+                console.log("Double-clicked on:", clickedMonitor.name);
+
+                // Smoothly move the OrbitControls target to the screen position
+                // And move the camera closer along the view vector
+                const currentTarget = new THREE.Vector3();
+                controls.getTarget(currentTarget); // Get current controls target
+
+                const directionToScreen = new THREE.Vector3().subVectors(screenWorldPosition, camera.position).normalize();
+                const zoomDistance = 0.6; // How close to get
+                const newCameraPosition = new THREE.Vector3().copy(screenWorldPosition).addScaledVector(directionToScreen, -zoomDistance);
+
+                // Use GSAP or Tween.js for smooth animation if available, otherwise lerp manually (more complex here)
+                // Simple immediate move for now:
+                controls.target.copy(screenWorldPosition); // Set target to screen
+                camera.position.copy(newCameraPosition); // Move camera closer
+                controls.update(); // Update controls state
+
+            }
+            // No 'zoom out' on double-clicking empty space needed, user uses controls
+        }
+        // --- CHANGE: Add dblclick listener, remove click listener ---
+        renderer.domElement.addEventListener( 'dblclick', onDoubleClick, false );
+        // renderer.domElement.addEventListener( 'click', onMouseClick, false ); // Remove single click
+
+
+        // --- Create Scene Content ---
+        createFloor();
+        createRoomCube();
+
+        const clusterOffset = deskWidth / 2 + 0.1;
+        const deskSetups = [
+            { pos: new THREE.Vector3( clusterOffset, 0, 0), rot: -Math.PI / 2, name: "MARK S." },
+            { pos: new THREE.Vector3(-clusterOffset, 0, 0), rot:  Math.PI / 2, name: "DYLAN G." },
+            { pos: new THREE.Vector3( 0, 0, clusterOffset), rot:  Math.PI    , name: "IRVING B." },
+            { pos: new THREE.Vector3( 0, 0,-clusterOffset), rot:  0          , name: "WILFRED" }
+        ];
+
+        deskSetups.forEach(setup => {
+            createDeskWithComputer(setup.pos, setup.rot, setup.name);
+        });
+
+        const adjustedDividerLength = clusterOffset * 3;
+        const dividerCenterY = deskHeight + (dividerHeight / 2);
+
+        createDivider(new THREE.Vector3(0, dividerCenterY, 0), new THREE.Vector3(dividerThickness, dividerHeight, adjustedDividerLength));
+        createDivider(new THREE.Vector3(0, dividerCenterY, 0), new THREE.Vector3(adjustedDividerLength, dividerHeight, dividerThickness));
+
+
         // Handle window resize
         window.addEventListener('resize', function() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-        
+
         // Animation loop
         const clock = new THREE.Clock();
-        
+        // const zoomSpeed = 4.0; // No longer needed for manual zoom
+
         function animate() {
             requestAnimationFrame(animate);
-            
             const delta = clock.getDelta();
-            
-            // Move camera based on key presses
-            const speed = 2.0;
-            const direction = new THREE.Vector3();
-            
-            // Get forward direction (excluding y component)
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(camera.quaternion);
-            forward.y = 0;
-            forward.normalize();
-            
-            // Get right direction
-            const right = new THREE.Vector3(1, 0, 0);
-            right.applyQuaternion(camera.quaternion);
-            right.y = 0;
-            right.normalize();
-            
-            if (moveForward) direction.add(forward);
-            if (moveBackward) direction.sub(forward);
-            if (moveRight) direction.add(right);
-            if (moveLeft) direction.sub(right);
-            
-            if (direction.length() > 0) {
-                direction.normalize();
-                camera.position.addScaledVector(direction, speed * delta);
-                
-                // Keep camera within room bounds
-                camera.position.x = Math.max(-4.5, Math.min(4.5, camera.position.x));
-                camera.position.z = Math.max(-4.5, Math.min(4.5, camera.position.z));
-            }
-            
-            // Rotate camera based on mouse
-            camera.rotation.y += (targetRotationY - camera.rotation.y) * 0.1;
-            camera.rotation.x += (targetRotationX - camera.rotation.x) * 0.1;
-            
-            // Update computer screen (flickering effect)
-            if (Math.random() > 0.97) {
-                const screenCanvas = computerScreen.material.map.image;
-                const screenCtx = screenCanvas.getContext('2d');
-                
-                // Update the green line with slight randomization for flicker effect
-                screenCtx.fillStyle = '#4a7856';
-                screenCtx.fillRect(100, 197, 300, 6);
-                
-                screenCtx.strokeStyle = '#a7ffb9';
-                screenCtx.lineWidth = 2;
-                screenCtx.beginPath();
-                screenCtx.moveTo(100, 200 + (Math.random() * 2 - 1));
-                screenCtx.lineTo(400, 200 + (Math.random() * 2 - 1));
-                screenCtx.stroke();
-                
-                computerScreen.material.map.needsUpdate = true;
-            }
-            
+
+            // --- CHANGE: Update OrbitControls ---
+            controls.update(); // Required if enableDamping is true
+
+            // --- REMOVE: Manual camera zoom animation ---
+            // if (isZooming) {
+            //     camera.position.lerp(targetPosition, delta * zoomSpeed);
+            //     // ... lookAt lerp ...
+            //     if (camera.position.distanceTo(targetPosition) < 0.01) {
+            //         // ... snap position ...
+            //         isZooming = false;
+            //     }
+            // }
+
             renderer.render(scene, camera);
         }
-        
-        // Start the animation when assets are loaded
-        setTimeout(() => {
-            document.getElementById('loading').style.display = 'none';
-            animate();
-        }, 1000);
+
+        document.getElementById('loading').style.display = 'none';
+        animate();
+
     </script>
 </body>
 </html>
